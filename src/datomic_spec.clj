@@ -4,39 +4,49 @@
 ;; clause = (not-clause | not-join-clause | or-clause | or-join-clause |
 ;;           expression-clause)
 (s/def ::clause
-  (s/alt :not-clause ::s/any
-         :not-join-clause ::s/any
-         :or-clause ::s/any
-         :or-join-clause ::s/any
-         :expression-clause ::s/any))
+  (s/alt :not ::s/any
+         :not-join ::s/any
+         :or ::s/any
+         :or-join ::s/any
+         :expression ::s/any))
 
 ;; where-clauses = ':where' clause+
 (s/def ::where
-  (s/+ ::clause))
+  (s/cat :clauses (s/+ ::clause)))
+
+(s/def ::in-var
+  (s/alt :src symbol?
+         :var symbol?
+         :pattern symbol?
+         :rules symbol?))
 
 ;; inputs = ':in' (src-var | variable | pattern-var | rules-var)+
 (s/def ::in
-  (s/+ (s/alt :src-var symbol?
-              :var symbol?
-              :pattern-var symbol?
-              :rules-var symbol?)))
+  (s/cat :vars (s/+ ::in-var)))
+
+(s/def ::with-var
+  (s/+ symbol?))
 
 ;; with-clause = ':with' variable+
 (s/def ::with
-  (s/+ symbol?))
+  (s/cat :vars (s/+ ::with-var)))
+
+(s/def ::find-spec
+  (s/or :rel ::s/any
+        :coll ::s/any
+        :tuple ::s/any
+        :scalar ::s/any))
 
 ;; find-spec = ':find' (find-rel | find-coll | find-tuple | find-scalar)
 (s/def ::find
-   (s/or :rel ::s/any
-         :coll ::s/any
-         :tuple ::s/any
-         :scalar ::s/any))
+  (s/cat :spec ::find-spec))
 
 ;; query = [find-spec with-clause? inputs? where-clauses?]
 (s/def ::query
   (s/or :map (s/keys :req-un [::find] :opt-un [::with ::in ::where])
-        :list (s/cat :find (s/cat :find-kw #{:find} :spec ::find)
-                     :with (s/? (s/cat :with-kw #{:with} :vars ::with))
-                     :in (s/? (s/cat :in-kw #{:in} :variables ::in))
+        :list (s/cat :find (s/cat :find-kw #{:find} :spec ::find-spec)
+                     :with (s/? (s/cat :with-kw #{:with}
+                                       :vars (s/+ ::with-var)))
+                     :in (s/? (s/cat :in-kw #{:in} :vars (s/+ ::in-var)))
                      :where (s/? (s/cat :where-kw #{:where}
-                                        :clauses ::where)))))
+                                        :clauses (s/+ ::clause))))))

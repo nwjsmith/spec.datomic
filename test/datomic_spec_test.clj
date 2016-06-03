@@ -19,4 +19,3 @@
   (testing "in list form"
     (is (s/valid? :datomic-spec/query
                   '[:find ?e :with ?monster :in $ :where [?e :age 42]]))))
-
