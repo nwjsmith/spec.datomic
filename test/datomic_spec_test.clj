@@ -19,3 +19,12 @@
   (testing "in list form"
     (is (s/valid? :datomic-spec/query
                   '[:find ?e :with ?monster :in $ :where [?e :age 42]]))))
+
+(deftest test-conforms-for-map-and-list-queries-are-the-same
+  (is (= (s/conform :datomic-spec/query
+                    '[:find ?e :with ?monster :in $ :where [?e :age 42]])
+         (s/conform :datomic-spec/query
+                    '{:find [?e]
+                      :with [?monster]
+                      :in [$]
+                      :where [[?e :age 42]]}))))
