@@ -1,63 +1,7 @@
 (ns datomic-spec
   (:require [clojure.spec :as s]
-            [clojure.string :as str]
+            [clojure.string :refer [ends-with? starts-with?]]
             [clojure.test.check.generators :as gen]))
-
-;; clause = (not-clause | not-join-clause | or-clause | or-join-clause |
-;;           expression-clause)
-(s/def ::clause
-  (s/alt :not ::s/any
-         :not-join ::s/any
-         :or ::s/any
-         :or-join ::s/any
-         :expression ::s/any))
-
-;; where-clauses = ':where' clause+
-(s/def ::where
-  (s/cat :clauses (s/+ ::clause)))
-
-(s/def ::in-var
-  (s/alt :src symbol?
-         :var symbol?
-         :pattern symbol?
-         :rules symbol?))
-
-;; inputs = ':in' (src-var | variable | pattern-var | rules-var)+
-(s/def ::in
-  (s/cat :vars (s/+ ::in-var)))
-
-(s/def ::with-var symbol?)
-
-;; with-clause = ':with' variable+
-(s/def ::with
-  (s/cat :vars (s/+ ::with-var)))
-
-(s/def ::var
-  (s/with-gen
-    (s/and symbol? #(str/starts-with? (name %) "?"))
-    #(gen/fmap
-       (fn [n] (symbol (str n "?")))
-       (gen/not-empty gen/string-alphanumeric))))
-
-;; TODO: pull-expr
-;; find-elem = (variable | pull-expr | aggregate)
-(s/def ::find-elem
-  (s/or :var ::var
-        :aggregate ::s/any))
-
-;; find-rel = find-elem+
-(s/def ::find-rel
-  (s/+ ::find-elem))
-
-(s/def ::find-spec
-  (s/or :rel ::find-rel
-        :coll ::s/any
-        :tuple ::s/any
-        :scalar ::s/any))
-
-;; find-spec = ':find' (find-rel | find-coll | find-tuple | find-scalar)
-(s/def ::find
-  (s/cat :spec ::find-spec))
 
 ;; Stolen from core.incubator
 (defn- dissoc-in
@@ -73,6 +17,219 @@
           (dissoc m k)))
       m)
     (dissoc m k)))
+
+(defn prefixed-symbol-spec
+  "Takes a prefix and returns a spec for a symbol with that prefix."
+  [prefix]
+  (s/with-gen
+    (s/and symbol? #(starts-with? (name %) prefix))
+    #(gen/fmap
+      (fn [n] (symbol (str prefix n)))
+      (gen/not-empty gen/string-alphanumeric))))
+
+;; constant = any non-variable data literal
+(s/def ::constant
+  (let [pred #(not (symbol? %))]
+    (s/with-gen
+      pred
+      #(gen/such-that pred gen/simple-type-printable))))
+
+;; plain-symbol = symbol that does not begin with "$" or "?"
+(s/def ::plain-symbol
+  (let [pred #(and (symbol? %) (not (or (starts-with? (name %) "$")
+                                        (starts-with? (name %) "?"))))]
+    (s/with-gen
+      pred
+      #(gen/such-that pred gen/symbol))))
+
+;; variable = symbol starting with "?"
+(s/def ::variable
+  (prefixed-symbol-spec "?"))
+
+;; not-clause = [ src-var? 'not' clause+ ]
+(s/def ::not-clause
+  (s/spec (s/cat :src-var (s/? ::src-var)
+                 :not #{'not}
+                 :clauses (s/+ ::clause))))
+
+;; not-join-clause = [ src-var? 'not-join' [variable+] clause+ ]
+(s/def ::not-join-clause
+  (s/spec (s/cat :src-var (s/? ::src-var)
+                 :not-join #{'not-join}
+                 :variables (s/+ ::variable)
+                 :clauses (s/+ ::clause))))
+
+;; and-clause = [ 'and' clause+ ]
+(s/def ::and-clause
+  (s/spec (s/cat :and #{'and}
+                 :clauses (s/+ ::clause))))
+
+;; or-clause = [ src-var? 'or' (clause | and-clause)+]
+(s/def ::or-clause
+  (s/spec (s/cat :src-var (s/? ::src-var)
+                 :or #{'or}
+                 :clauses (s/+ (s/alt :clause ::clause
+                                      :and-clause ::and-clause)))))
+
+;; FIXME this is definitely wrong
+;; rule-vars = [variable+ | ([variable+] variable*)]
+(s/def ::rule-vars
+  (s/spec (s/or :variables (s/+ ::variable)
+                :required-variables (s/cat :req (s/spec (s/+ ::variable))
+                                           :opt (s/* ::variable)))))
+
+;; or-join-clause = [ src-var? 'or-join' rule-vars (clause | and-clause)+ ]
+(s/def ::or-join-clause
+  (s/spec (s/cat :src-var (s/? ::src-var)
+                 :or-join #{'or-join}
+                 :rule-vars ::rule-vars
+                 :clauses (s/+ (s/alt :clause ::clause
+                                      :and-clause ::and-clause)))))
+
+;; data-pattern = [ src-var? (variable | constant | '_')+ ]
+(s/def ::data-pattern
+  (s/spec (s/cat :src-var (s/? ::src-var)
+                 :pattern (s/+ (s/alt :variable ::variable
+                                      :constant ::constant
+                                      :blank #{'_})))))
+
+;; fn-arg = (variable | constant | src-var)
+(s/def ::fn-arg
+  (s/alt :variable ::variable
+         :constant ::constant
+         :src-var ::src-var))
+
+;; pred = FIXME this probably isn't a narrow enough
+(s/def ::pred
+  (s/with-gen
+    (s/and symbol? #(ends-with? (name %) "?"))
+    #(gen/fmap
+      (fn [s] (symbol (str s "?")))
+      (gen/not-empty gen/string-alphanumeric))))
+
+;; pred-expr = [ [pred fn-arg+] ]
+(s/def ::pred-expr
+  (s/spec
+    (s/spec (s/cat :pred ::pred
+                   :fn-args (s/+ ::fn-arg)))))
+
+;; bind-scalar = variable
+(s/def ::bind-scalar ::variable)
+
+;; bind-tuple = [ (variable | '_')+]
+(s/def ::bind-tuple
+  (s/spec (s/+ (s/alt :variable ::variable
+                      :blank #{'_}))))
+
+;; bind-coll = [variable '...']
+(s/def ::bind-coll
+  (s/spec (s/cat :variable ::variable
+                 :ellipses #{'...})))
+
+;; bind-rel = [ [(variable | '_')+]]
+(s/def ::bind-rel
+  (s/spec
+    (s/spec (s/+ (s/alt :variable ::variable
+                        :blank #{'_})))))
+
+;; binding = (bind-scalar | bind-tuple | bind-coll | bind-rel)
+(s/def ::binding
+  (s/or :bind-scalar ::bind-scalar
+        :bind-tuple ::bind-tuple
+        :bind-coll ::bind-coll
+        :bind-rel ::bind-rel))
+
+;; fn-expr = [ [fn fn-arg+] binding]
+(s/def ::fn-expr
+  (s/spec
+    (s/spec (s/cat :fn ::plain-symbol
+                   :fn-args (s/+ ::fn-arg)
+                   :binding ::binding))))
+
+;; rule-expr = [ src-var? rule-name (variable | constant | '_')+]
+(s/def ::rule-expr
+  (s/spec (s/cat :src-var (s/? ::src-var)
+                 :rule-name ::plain-symbol
+                 :rule-args (s/+ (s/alt :variable ::variable
+                                        :constant ::constant
+                                        :blank #{'_})))))
+
+;; expression-clause = (data-pattern | pred-expr | fn-expr | rule-expr)
+(s/def ::expression-clause
+  (s/or :data-pattern ::data-pattern
+        :pred-expr ::pred-expr
+        :fn-expr ::fn-expr
+        :rule-exp ::rule-expr))
+
+;; clause = (not-clause | not-join-clause | or-clause | or-join-clause |
+;;           expression-clause)
+(s/def ::clause
+  (s/alt :not-clause ::not-clause
+         :not-join ::not-join-clause
+         :or-clause ::or-clause
+         :or-join-clause ::or-join-clause
+         :expression-clause ::expression-clause))
+
+;; where-clauses = ':where' clause+
+(s/def ::where
+  (s/cat :clauses (s/+ ::clause)))
+
+;; src-var = symbol starting with "$"
+(s/def ::src-var
+  (prefixed-symbol-spec "$"))
+
+;; inputs = ':in' (src-var | variable | pattern-var | rules-var)+
+(s/def ::in-var
+  (s/alt :src-var ::src-var
+         :variable ::variable
+         :pattern-var ::plain-symbol
+         :rules-var #{'%}))
+
+(s/def ::in
+  (s/cat :vars (s/+ ::in-var)))
+
+;; with-clause = ':with' variable+
+(s/def ::with
+  (s/cat :variables (s/+ ::variable)))
+
+;; aggregate = [aggregate-fn-name fn-arg+]
+(s/def ::aggregate
+  (s/spec (s/cat :fn-name symbol?
+                 :fn-args (s/+ ::fn-arg))))
+
+;; TODO: pull-expr
+;; find-elem = (variable | pull-expr | aggregate)
+(s/def ::find-elem
+  (s/or :variable ::variable
+        :aggregate ::aggregate))
+
+;; find-rel = find-elem+
+(s/def ::find-rel
+  (s/+ ::find-elem))
+
+;; find-coll = [find-elem '...']
+(s/def ::find-coll
+  (s/spec (s/cat :elem ::find-elem
+                 :ellipses #{'...})))
+
+;; find-tuple = [find-elem+]
+(s/def ::find-tuple
+  (s/spec (s/+ ::find-elem)))
+
+;; find-scalar = find-elem '.'
+(s/def ::find-scalar
+  (s/cat :elem ::find-elem
+         :period #{'.}))
+
+;; find-spec = ':find' (find-rel | find-coll | find-tuple | find-scalar)
+(s/def ::find-spec
+  (s/or :rel ::find-rel
+        :coll ::find-coll
+        :tuple ::find-tuple
+        :scalar ::find-scalar))
+
+(s/def ::find
+  (s/cat :spec ::find-spec))
 
 (def ^:private query-spec
   (s/or :map (s/keys :req-un [::find] :opt-un [::with ::in ::where])
