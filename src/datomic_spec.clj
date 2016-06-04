@@ -1,5 +1,7 @@
 (ns datomic-spec
-  (:require [clojure.spec :as s]))
+  (:require [clojure.spec :as s]
+            [clojure.string :as str]
+            [clojure.test.check.generators :as gen]))
 
 ;; clause = (not-clause | not-join-clause | or-clause | or-join-clause |
 ;;           expression-clause)
@@ -30,8 +32,25 @@
 (s/def ::with
   (s/cat :vars (s/+ ::with-var)))
 
+(s/def ::var
+  (s/with-gen
+    (s/and symbol? #(str/starts-with? (name %) "?"))
+    #(gen/fmap
+       (fn [n] (symbol (str n "?")))
+       (gen/not-empty gen/string-alphanumeric))))
+
+;; TODO: pull-expr
+;; find-elem = (variable | pull-expr | aggregate)
+(s/def ::find-elem
+  (s/or :var ::var
+        :aggregate ::s/any))
+
+;; find-rel = find-elem+
+(s/def ::find-rel
+  (s/+ ::find-elem))
+
 (s/def ::find-spec
-  (s/or :rel ::s/any
+  (s/or :rel ::find-rel
         :coll ::s/any
         :tuple ::s/any
         :scalar ::s/any))
@@ -39,7 +58,6 @@
 ;; find-spec = ':find' (find-rel | find-coll | find-tuple | find-scalar)
 (s/def ::find
   (s/cat :spec ::find-spec))
-
 
 ;; Stolen from core.incubator
 (defn- dissoc-in
