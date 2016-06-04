@@ -3,7 +3,7 @@
             [clojure.string :refer [ends-with? starts-with?]]
             [clojure.test.check.generators :as gen]))
 
-;; Stolen from core.incubator
+;; From core.incubator
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
   nested structure. keys is a sequence of keys. Any empty maps that result
@@ -26,6 +26,9 @@
     #(gen/fmap
       (fn [n] (symbol (str prefix n)))
       (gen/not-empty gen/string-alphanumeric))))
+
+;; =============================================================================
+;; Specs
 
 ;; constant = any non-variable data literal
 (s/def ::constant
@@ -179,18 +182,11 @@
   (prefixed-symbol-spec "$"))
 
 ;; inputs = ':in' (src-var | variable | pattern-var | rules-var)+
-(s/def ::in-var
+(s/def ::input
   (s/alt :src-var ::src-var
          :variable ::variable
          :pattern-var ::plain-symbol
          :rules-var #{'%}))
-
-(s/def ::in
-  (s/cat :vars (s/+ ::in-var)))
-
-;; with-clause = ':with' variable+
-(s/def ::with
-  (s/cat :variables (s/+ ::variable)))
 
 ;; aggregate = [aggregate-fn-name fn-arg+]
 (s/def ::aggregate
@@ -200,8 +196,8 @@
 ;; TODO: pull-expr
 ;; find-elem = (variable | pull-expr | aggregate)
 (s/def ::find-elem
-  (s/or :variable ::variable
-        :aggregate ::aggregate))
+  (s/alt :variable ::variable
+         :aggregate ::aggregate))
 
 ;; find-rel = find-elem+
 (s/def ::find-rel
@@ -223,37 +219,54 @@
 
 ;; find-spec = ':find' (find-rel | find-coll | find-tuple | find-scalar)
 (s/def ::find-spec
-  (s/or :rel ::find-rel
-        :coll ::find-coll
-        :tuple ::find-tuple
-        :scalar ::find-scalar))
+  (s/alt :rel ::find-rel
+         :coll ::find-coll
+         :tuple ::find-tuple
+         :scalar ::find-scalar))
+
+;; with-clause = ':with' variable+
+(s/def ::with
+  (s/cat :variables (s/+ ::variable)))
+
+(s/def ::in
+  (s/cat :inputs (s/+ ::input)))
 
 (s/def ::find
   (s/cat :spec ::find-spec))
 
-(def ^:private query-spec
-  (s/or :map (s/keys :req-un [::find] :opt-un [::with ::in ::where])
-        :list (s/cat :find (s/cat :find-kw #{:find} :spec ::find-spec)
-                     :with (s/? (s/cat :with-kw #{:with}
-                                       :vars (s/+ ::with-var)))
-                     :in (s/? (s/cat :in-kw #{:in} :vars (s/+ ::in-var)))
-                     :where (s/? (s/cat :where-kw #{:where}
-                                        :clauses (s/+ ::clause))))))
+(s/def ::query-map
+  (s/keys :req-un [::find] :opt-un [::with ::in ::where]))
 
-(defn- query-conformer
+(s/def ::query-list
+  (s/cat :find (s/cat :find-kw #{:find} :spec ::find-spec)
+         :with (s/? (s/cat :with-kw #{:with} :variables (s/+ ::variable)))
+         :in (s/? (s/cat :in-kw #{:in} :inputs (s/+ ::input)))
+         :where (s/? (s/cat :where-kw #{:where} :clauses (s/+ ::clause)))))
+
+(def ^:private list-form-kw-paths
+  [[:find :find-kw]
+   [:with :with-kw]
+   [:in :in-kw]
+   [:where :where-kw]])
+
+(def ^:private query-spec
+  (s/or :map ::query-map
+        :list ::query-list))
+
+(defn- conform-query
+  "Takes a query in list or map form and conforms it, stripping query
+  form-specific data."
   [x]
   (let [conformed (s/conform query-spec x)]
     (if (= conformed ::s/invalid)
       ::s/invalid
-      (let [[_ data] conformed]
-        (-> data
-            (dissoc-in [:find :find-kw])
-            (dissoc-in [:with :with-kw])
-            (dissoc-in [:in :in-kw])
-            (dissoc-in [:where :where-kw]))))))
+      (let [[_query-form data] conformed]
+        (reduce (fn [m path] (dissoc-in m path))
+                data
+                list-form-kw-paths)))))
 
 ;; query = [find-spec with-clause? inputs? where-clauses?]
 (s/def ::query
   (s/with-gen
-    (s/conformer query-conformer)
+    (s/conformer conform-query)
     #(s/gen query-spec)))
