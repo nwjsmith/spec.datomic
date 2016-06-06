@@ -275,6 +275,19 @@
 
 ;; query = [find-spec with-clause? inputs? where-clauses?]
 (s/def ::query
-  (s/with-gen
-    (s/conformer conform-query)
-    #(s/gen query-spec)))
+  (reify
+    clojure.lang.IFn
+    (invoke [this x] (s/valid? this x))
+    clojure.spec/Spec
+    (conform* [_ m]
+      (let [conformed (s/conform query-spec m)]
+        (if (= conformed ::s/invalid)
+          ::s/invalid
+          (let [[_query-form data] conformed]
+            (reduce (fn [m path] (dissoc-in m path))
+                    data
+                    list-form-kw-paths)))))
+    (explain* [_ path via in x] (s/explain* query-spec path via in x))
+    (gen* [_ overrides path rmap] (s/gen* query-spec overrides path rmap))
+    (with-gen* [_ gfn] (s/with-gen* query-spec gfn))
+    (describe* [_] (s/describe* query-spec))))
