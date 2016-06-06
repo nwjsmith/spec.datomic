@@ -77,9 +77,9 @@
 ;; FIXME this is definitely wrong
 ;; rule-vars = [variable+ | ([variable+] variable*)]
 (s/def ::rule-vars
-  (s/spec (s/or :variables (s/+ ::variable)
-                :required-variables (s/cat :req (s/spec (s/+ ::variable))
-                                           :opt (s/* ::variable)))))
+  (s/or :variables (s/+ ::variable)
+        :required-variables (s/cat :req (s/spec (s/+ ::variable))
+                                   :opt (s/* ::variable))))
 
 ;; or-join-clause = [ src-var? 'or-join' rule-vars (clause | and-clause)+ ]
 (s/def ::or-join-clause
@@ -137,10 +137,10 @@
 
 ;; binding = (bind-scalar | bind-tuple | bind-coll | bind-rel)
 (s/def ::binding
-  (s/or :bind-scalar ::bind-scalar
-        :bind-tuple ::bind-tuple
-        :bind-coll ::bind-coll
-        :bind-rel ::bind-rel))
+  (s/alt :bind-scalar ::bind-scalar
+         :bind-tuple ::bind-tuple
+         :bind-coll ::bind-coll
+         :bind-rel ::bind-rel))
 
 ;; fn-expr = [ [fn fn-arg+] binding]
 (s/def ::fn-expr
@@ -159,10 +159,10 @@
 
 ;; expression-clause = (data-pattern | pred-expr | fn-expr | rule-expr)
 (s/def ::expression-clause
-  (s/or :data-pattern ::data-pattern
-        :pred-expr ::pred-expr
-        :fn-expr ::fn-expr
-        :rule-exp ::rule-expr))
+  (s/alt :data-pattern ::data-pattern
+         :pred-expr ::pred-expr
+         :fn-expr ::fn-expr
+         :rule-exp ::rule-expr))
 
 ;; clause = (not-clause | not-join-clause | or-clause | or-join-clause |
 ;;           expression-clause)
