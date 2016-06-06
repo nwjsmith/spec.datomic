@@ -237,11 +237,19 @@
 (s/def ::query-map
   (s/keys :req-un [::find] :opt-un [::with ::in ::where]))
 
+(s/def ::list-find (s/cat :find-kw #{:find} :spec ::find-spec))
+
+(s/def ::list-with (s/? (s/cat :with-kw #{:with} :variables (s/+ ::variable))))
+
+(s/def ::list-in (s/? (s/cat :in-kw #{:in} :inputs (s/+ ::input))))
+
+(s/def ::list-where (s/? (s/cat :where-kw #{:where} :clauses (s/+ ::clause))))
+
 (s/def ::query-list
-  (s/cat :find (s/cat :find-kw #{:find} :spec ::find-spec)
-         :with (s/? (s/cat :with-kw #{:with} :variables (s/+ ::variable)))
-         :in (s/? (s/cat :in-kw #{:in} :inputs (s/+ ::input)))
-         :where (s/? (s/cat :where-kw #{:where} :clauses (s/+ ::clause)))))
+  (s/cat :find ::list-find
+         :with ::list-with
+         :in ::list-in
+         :where ::list-where))
 
 (def ^:private list-form-kw-paths
   [[:find :find-kw]
