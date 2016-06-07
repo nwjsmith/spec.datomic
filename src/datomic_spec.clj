@@ -40,7 +40,8 @@
 ;; plain-symbol = symbol that does not begin with "$" or "?"
 (s/def ::plain-symbol
   (let [pred #(and (symbol? %) (not (or (starts-with? (name %) "$")
-                                        (starts-with? (name %) "?"))))]
+                                        (starts-with? (name %) "?")
+                                        (= '_ %))))]
     (s/with-gen
       pred
       #(gen/such-that pred gen/symbol))))
@@ -51,28 +52,28 @@
 
 ;; not-clause = [ src-var? 'not' clause+ ]
 (s/def ::not-clause
-  (s/spec (s/cat :src-var (s/? ::src-var)
-                 :not #{'not}
-                 :clauses (s/+ ::clause))))
+  (s/cat :condition (s/spec (s/cat :src-var (s/? ::src-var)
+                                   :not #{'not}
+                                   :clauses (s/+ ::clause)))))
 
 ;; not-join-clause = [ src-var? 'not-join' [variable+] clause+ ]
 (s/def ::not-join-clause
-  (s/spec (s/cat :src-var (s/? ::src-var)
-                 :not-join #{'not-join}
-                 :variables (s/+ ::variable)
-                 :clauses (s/+ ::clause))))
+  (s/cat :condition (s/spec (s/cat :src-var (s/? ::src-var)
+                                   :not-join #{'not-join}
+                                   :variables (s/spec (s/+ ::variable))
+                                   :clauses (s/+ ::clause)))))
 
 ;; and-clause = [ 'and' clause+ ]
 (s/def ::and-clause
-  (s/spec (s/cat :and #{'and}
-                 :clauses (s/+ ::clause))))
+  (s/cat :condition (s/spec (s/cat :and #{'and}
+                                   :clauses (s/+ ::clause)))))
 
 ;; or-clause = [ src-var? 'or' (clause | and-clause)+]
 (s/def ::or-clause
-  (s/spec (s/cat :src-var (s/? ::src-var)
-                 :or #{'or}
-                 :clauses (s/+ (s/alt :clause ::clause
-                                      :and-clause ::and-clause)))))
+  (s/cat :condition (s/spec (s/cat :src-var (s/? ::src-var)
+                                   :or #{'or}
+                                   :clauses (s/+ (s/alt :and-clause ::and-clause
+                                                        :clause ::clause))))))
 
 ;; FIXME this is definitely wrong
 ;; rule-vars = [variable+ | ([variable+] variable*)]
@@ -82,12 +83,14 @@
                                    :opt (s/* ::variable))))
 
 ;; or-join-clause = [ src-var? 'or-join' rule-vars (clause | and-clause)+ ]
+;; FIXME this takes rule-vars?
 (s/def ::or-join-clause
-  (s/spec (s/cat :src-var (s/? ::src-var)
-                 :or-join #{'or-join}
-                 :rule-vars ::rule-vars
-                 :clauses (s/+ (s/alt :clause ::clause
-                                      :and-clause ::and-clause)))))
+  (s/cat :condition (s/spec
+                      (s/cat :src-var (s/? ::src-var)
+                             :or-join #{'or-join}
+                             :variables (s/spec (s/+ ::variable))
+                             :clauses (s/+ (s/alt :and-clause ::and-clause
+                                                  :clause ::clause))))))
 
 ;; data-pattern = [ src-var? (variable | constant | '_')+ ]
 (s/def ::data-pattern
@@ -102,7 +105,7 @@
          :constant ::constant
          :src-var ::src-var))
 
-;; pred = FIXME this probably isn't a narrow enough
+;; pred = FIXME this probably isn't a narrow enough (< is a predicate)
 (s/def ::pred
   (s/with-gen
     (s/and symbol? #(ends-with? (name %) "?"))
@@ -121,19 +124,18 @@
 
 ;; bind-tuple = [ (variable | '_')+]
 (s/def ::bind-tuple
-  (s/spec (s/+ (s/alt :variable ::variable
-                      :blank #{'_}))))
+  (s/cat :tuple (s/spec (s/+ (s/alt :variable ::variable
+                                    :blank #{'_})))))
 
 ;; bind-coll = [variable '...']
 (s/def ::bind-coll
-  (s/spec (s/cat :variable ::variable
-                 :ellipses #{'...})))
+  (s/cat :coll (s/spec (s/cat :variable ::variable
+                              :ellipses #{'...}))))
 
 ;; bind-rel = [ [(variable | '_')+]]
 (s/def ::bind-rel
-  (s/spec
-    (s/spec (s/+ (s/alt :variable ::variable
-                        :blank #{'_})))))
+  (s/cat :find-rel (s/spec (s/cat :variables (s/spec (s/+ (s/alt :variable ::variable
+                                                                 :blank #{'_})))))))
 
 ;; binding = (bind-scalar | bind-tuple | bind-coll | bind-rel)
 (s/def ::binding
@@ -144,31 +146,31 @@
 
 ;; fn-expr = [ [fn fn-arg+] binding]
 (s/def ::fn-expr
-  (s/spec
-    (s/spec (s/cat :fn ::plain-symbol
-                   :fn-args (s/+ ::fn-arg)
-                   :binding ::binding))))
+  (s/cat :expr (s/spec
+                 (s/cat :fn-call (s/spec (s/cat :fn ::plain-symbol
+                                                :fn-args (s/+ ::fn-arg)))
+                        :binding ::binding))))
 
 ;; rule-expr = [ src-var? rule-name (variable | constant | '_')+]
 (s/def ::rule-expr
-  (s/spec (s/cat :src-var (s/? ::src-var)
-                 :rule-name ::plain-symbol
-                 :rule-args (s/+ (s/alt :variable ::variable
-                                        :constant ::constant
-                                        :blank #{'_})))))
+  (s/cat :src-var (s/? ::src-var)
+         :rule-name ::plain-symbol
+         :rule-args (s/+ (s/alt :variable ::variable
+                                :constant ::constant
+                                :blank #{'_}))))
 
 ;; expression-clause = (data-pattern | pred-expr | fn-expr | rule-expr)
 (s/def ::expression-clause
-  (s/alt :data-pattern ::data-pattern
-         :pred-expr ::pred-expr
+  (s/alt :pred-expr ::pred-expr
          :fn-expr ::fn-expr
-         :rule-exp ::rule-expr))
+         :rule-exp (s/spec ::rule-expr)
+         :data-pattern ::data-pattern))
 
 ;; clause = (not-clause | not-join-clause | or-clause | or-join-clause |
 ;;           expression-clause)
 (s/def ::clause
   (s/alt :not-clause ::not-clause
-         :not-join ::not-join-clause
+         :not-join-clause ::not-join-clause
          :or-clause ::or-clause
          :or-join-clause ::or-join-clause
          :expression-clause ::expression-clause))
@@ -186,12 +188,14 @@
   (s/alt :src-var ::src-var
          :variable ::variable
          :pattern-var ::plain-symbol
-         :rules-var #{'%}))
+         :rules-var #{'%}
+         :binding ::binding))
 
 ;; aggregate = [aggregate-fn-name fn-arg+]
+;; TODO is plain-symbol the right call here?
 (s/def ::aggregate
-  (s/spec (s/cat :fn-name symbol?
-                 :fn-args (s/+ ::fn-arg))))
+  (s/cat :fn-call (s/spec (s/cat :fn-name ::plain-symbol
+                                 :fn-args (s/+ ::fn-arg)))))
 
 ;; TODO: pull-expr
 ;; find-elem = (variable | pull-expr | aggregate)
@@ -205,12 +209,12 @@
 
 ;; find-coll = [find-elem '...']
 (s/def ::find-coll
-  (s/spec (s/cat :elem ::find-elem
-                 :ellipses #{'...})))
+  (s/cat :coll (s/spec (s/cat :elem ::find-elem
+                              :ellipses #{'...}))))
 
 ;; find-tuple = [find-elem+]
 (s/def ::find-tuple
-  (s/spec (s/+ ::find-elem)))
+  (s/cat :tuple (s/spec (s/+ ::find-elem))))
 
 ;; find-scalar = find-elem '.'
 (s/def ::find-scalar
@@ -219,10 +223,10 @@
 
 ;; find-spec = ':find' (find-rel | find-coll | find-tuple | find-scalar)
 (s/def ::find-spec
-  (s/alt :rel ::find-rel
-         :coll ::find-coll
-         :tuple ::find-tuple
-         :scalar ::find-scalar))
+  (s/alt :find-rel ::find-rel
+         :find-coll ::find-coll
+         :find-tuple ::find-tuple
+         :find-scalar ::find-scalar))
 
 ;; with-clause = ':with' variable+
 (s/def ::with
