@@ -242,4 +242,4 @@
          :where (s/? (s/cat :where-kw #{:where} :clauses (s/+ ::clause)))))
 
 (s/def ::query
-  (s/multi-spec query-form :form))
+  (s/multi-spec query-form (fn [g _] g)))
