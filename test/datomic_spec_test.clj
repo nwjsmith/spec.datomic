@@ -445,3 +445,75 @@
                                (and [?release :release/artists ?artist]
                                     [?artist :artist/country :country/CA])
                                [?release :release/year 1970])]))))
+
+;; http://docs.datomic.com/query.html#sec-5-11-1
+(deftest test-predicate-expression
+  (is (= '{:find {:spec [:find-rel [[:variable ?name] [:variable ?year]]]}
+           :where {:clauses [[:expression-clause
+                              [:data-pattern
+                               {:pattern
+                                [[:variable ?artist]
+                                 [:constant :artist/name]
+                                 [:variable ?name]]}]]
+                             [:expression-clause
+                              [:data-pattern
+                               {:pattern
+                                [[:variable ?artist]
+                                 [:constant :artist/startYear]
+                                 [:variable ?year]]}]]
+                             [:expression-clause
+                              [:pred-expr
+                               {:expr
+                                {:fn-call {:fn <
+                                           :fn-args [[:variable ?year]
+                                                     [:constant 1600]]}}}]]]}}
+         (s/conform :datomic-spec/query
+                    '[:find ?name ?year
+                      :where [?artist :artist/name ?name]
+                             [?artist :artist/startYear ?year]
+                             [(< ?year 1600)]]))))
+
+;; http://docs.datomic.com/query.html#sec-5-11-2
+(deftest test-function-expression
+  (is (= '{:find {:spec [:find-rel [[:variable ?track-name]
+                                    [:variable ?minutes]]]}
+           :in {:inputs [[:src-var $] [:variable ?artist-name]]}
+           :where {:clauses [[:expression-clause
+                              [:data-pattern
+                               {:pattern
+                                [[:variable ?artist]
+                                 [:constant :artist/name]
+                                 [:variable ?artist-name]]}]]
+                             [:expression-clause
+                              [:data-pattern
+                               {:pattern
+                                [[:variable ?track]
+                                 [:constant :track/artists]
+                                 [:variable ?artist]]}]]
+                             [:expression-clause
+                              [:data-pattern
+                               {:pattern
+                                [[:variable ?track]
+                                 [:constant :track/duration]
+                                 [:variable ?millis]]}]]
+                             [:expression-clause
+                              [:fn-expr
+                               {:expr
+                                {:fn-call {:fn quot
+                                           :fn-args [[:variable ?millis]
+                                                     [:constant 60000]]}
+                                 :binding [:bind-scalar ?minutes]}}]]
+                             [:expression-clause
+                              [:data-pattern
+                               {:pattern
+                                [[:variable ?track]
+                                 [:constant :track/name]
+                                 [:variable ?track-name]]}]]]}}
+         (s/conform :datomic-spec/query
+                    '[:find ?track-name ?minutes
+                      :in $ ?artist-name
+                      :where [?artist :artist/name ?artist-name]
+                      [?track :track/artists ?artist]
+                      [?track :track/duration ?millis]
+                      [(quot ?millis 60000) ?minutes]
+                      [?track :track/name ?track-name]]))))

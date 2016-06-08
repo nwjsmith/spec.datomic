@@ -1,7 +1,8 @@
 (ns datomic-spec
   (:require [clojure.spec :as s]
             [clojure.string :refer [ends-with? starts-with?]]
-            [clojure.test.check.generators :as gen]))
+            [clojure.test.check.generators :as gen])
+  (:import (clojure.lang IFn)))
 
 ;; From core.incubator
 (defn- dissoc-in
@@ -94,10 +95,10 @@
 
 ;; data-pattern = [ src-var? (variable | constant | '_')+ ]
 (s/def ::data-pattern
-  (s/spec (s/cat :src-var (s/? ::src-var)
-                 :pattern (s/+ (s/alt :variable ::variable
-                                      :constant ::constant
-                                      :blank #{'_})))))
+  (s/cat :src-var (s/? ::src-var)
+         :pattern (s/+ (s/alt :variable ::variable
+                              :constant ::constant
+                              :blank #{'_}))))
 
 ;; fn-arg = (variable | constant | src-var)
 (s/def ::fn-arg
@@ -105,19 +106,11 @@
          :constant ::constant
          :src-var ::src-var))
 
-;; pred = FIXME this probably isn't a narrow enough (< is a predicate)
-(s/def ::pred
-  (s/with-gen
-    (s/and symbol? #(ends-with? (name %) "?"))
-    #(gen/fmap
-      (fn [s] (symbol (str s "?")))
-      (gen/not-empty gen/string-alphanumeric))))
-
 ;; pred-expr = [ [pred fn-arg+] ]
 (s/def ::pred-expr
-  (s/spec
-    (s/spec (s/cat :pred ::pred
-                   :fn-args (s/+ ::fn-arg)))))
+  (s/cat :expr (s/spec
+                 (s/cat :fn-call (s/spec (s/cat :fn ::plain-symbol
+                                                :fn-args (s/+ ::fn-arg)))))))
 
 ;; bind-scalar = variable
 (s/def ::bind-scalar ::variable)
@@ -134,8 +127,9 @@
 
 ;; bind-rel = [ [(variable | '_')+]]
 (s/def ::bind-rel
-  (s/cat :find-rel (s/spec (s/cat :variables (s/spec (s/+ (s/alt :variable ::variable
-                                                                 :blank #{'_})))))))
+  (s/cat :find-rel (s/spec
+                     (s/cat :variables (s/spec (s/+ (s/alt :variable ::variable
+                                                           :blank #{'_})))))))
 
 ;; binding = (bind-scalar | bind-tuple | bind-coll | bind-rel)
 (s/def ::binding
@@ -164,7 +158,7 @@
   (s/alt :pred-expr ::pred-expr
          :fn-expr ::fn-expr
          :rule-exp (s/spec ::rule-expr)
-         :data-pattern ::data-pattern))
+         :data-pattern (s/spec ::data-pattern)))
 
 ;; clause = (not-clause | not-join-clause | or-clause | or-join-clause |
 ;;           expression-clause)
@@ -192,7 +186,6 @@
          :binding ::binding))
 
 ;; aggregate = [aggregate-fn-name fn-arg+]
-;; TODO is plain-symbol the right call here?
 (s/def ::aggregate
   (s/cat :fn-call (s/spec (s/cat :fn-name ::plain-symbol
                                  :fn-args (s/+ ::fn-arg)))))
@@ -265,22 +258,10 @@
   (s/or :map ::query-map
         :list ::query-list))
 
-(defn- conform-query
-  "Takes a query in list or map form and conforms it, stripping query
-  form-specific data."
-  [x]
-  (let [conformed (s/conform query-spec x)]
-    (if (= conformed ::s/invalid)
-      ::s/invalid
-      (let [[_query-form data] conformed]
-        (reduce (fn [m path] (dissoc-in m path))
-                data
-                list-form-kw-paths)))))
-
 ;; query = [find-spec with-clause? inputs? where-clauses?]
 (s/def ::query
   (reify
-    clojure.lang.IFn
+    IFn
     (invoke [this x] (s/valid? this x))
     clojure.spec/Spec
     (conform* [_ m]
