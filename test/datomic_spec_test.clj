@@ -3,19 +3,12 @@
             [clojure.spec :as s]
             [datomic-spec :refer :all]))
 
-(deftest test-conforms-for-map-and-list-queries-are-the-same
-  (is (= (s/conform :datomic-spec/query
-                    '[:find ?e :with ?monster :in $ :where [?e :age 42]])
-         (s/conform :datomic-spec/query
-                    '{:find [?e]
-                      :with [?monster]
-                      :in [$]
-                      :where [[?e :age 42]]}))))
-
 ;; http://docs.datomic.com/query.html#sec-5-1
 (deftest test-basic-query
-  (is (= '{:find {:spec [:find-rel [[:variable ?e]]]}
-           :where {:clauses [[:expression-clause
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?e]]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?e]
                                           [:constant :age]
@@ -24,8 +17,10 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-2
 (deftest test-unification-query
-  (is (= '{:find {:spec [:find-rel [[:variable ?e] [:variable ?x]]]}
-           :where {:clauses [[:expression-clause
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?e] [:variable ?x]]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?e]
                                           [:constant :age]
@@ -41,8 +36,10 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-3
 (deftest test-blanks-query
-  (is (= '{:find {:spec [:find-rel [[:variable ?x]]]}
-           :where {:clauses [[:expression-clause
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?x]]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                                 [:data-pattern
                                   {:pattern [[:blank _]
                                              [:constant :likes]
@@ -52,9 +49,12 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-5
 (deftest test-inputs-query
-  (is (= '{:find {:spec [:find-rel [[:variable ?release-name]]]}
-           :in {:inputs [[:src-var $]]}
-           :where {:clauses [[:expression-clause
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?release-name]]]}
+           :in {:in-kw :in
+                :inputs [[:src-var $]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:src-var $
                                 :pattern [[:blank _]
@@ -67,12 +67,15 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-7-1
 (deftest test-tuple-bindings-query
-  (is (= '{:find {:spec [:find-rel [[:variable ?release]]]}
-           :in {:inputs [[:src-var $] [:binding
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?release]]]}
+           :in {:in-kw :in
+                :inputs [[:src-var $] [:binding
                                        [:bind-tuple
                                         {:tuple [[:variable ?artist-name]
                                                  [:variable ?release-name]]}]]]}
-           :where {:clauses [[:expression-clause
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]
@@ -96,12 +99,15 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-7-2
 (deftest test-collection-bindings-query
-  (is (= '{:find {:spec [:find-rel [[:variable ?release-name]]]}
-           :in {:inputs [[:src-var $] [:binding
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?release-name]]]}
+           :in {:in-kw :in
+                :inputs [[:src-var $] [:binding
                                        [:bind-coll
                                         {:coll {:variable ?artist-name
                                                 :ellipses ...}}]]]}
-           :where {:clauses [[:expression-clause
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]
@@ -125,14 +131,17 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-7-3
 (deftest test-relation-bindings-query
-  (is (= '{:find {:spec [:find-rel [[:variable ?release]]]}
-           :in {:inputs [[:src-var $] [:binding
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?release]]]}
+           :in {:in-kw :in
+                :inputs [[:src-var $] [:binding
                                        [:bind-rel
                                         {:find-rel
                                          {:variables
                                           [[:variable ?artist-name]
                                            [:variable ?release-name]]}}]]]}
-           :where {:clauses [[:expression-clause
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]
@@ -156,9 +165,11 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-8
 (deftest test-find-spec-rel
-  (is (= '{:find {:spec [:find-rel [[:variable ?artist-name]
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?artist-name]
                                     [:variable ?release-name]]]}
-           :where {:clauses [[:expression-clause
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?release]
                                           [:constant :release/name]
@@ -180,10 +191,13 @@
                              [?artist :artist/name ?artist-name]]))))
 
 (deftest test-find-spec-coll
-  (is (= '{:find {:spec [:find-coll {:coll {:elem [:variable ?release-name]
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-coll {:coll {:elem [:variable ?release-name]
                                             :ellipses ...}}]}
-           :in {:inputs [[:src-var $] [:variable ?artist-name]]}
-           :where {:clauses [[:expression-clause
+           :in {:in-kw :in
+                :inputs [[:src-var $] [:variable ?artist-name]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]
@@ -206,11 +220,14 @@
                              [?release :release/name ?release-name]]))))
 
 (deftest test-find-spec-tuple
-  (is (= '{:find {:spec [:find-tuple {:tuple [[:variable ?year]
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-tuple {:tuple [[:variable ?year]
                                               [:variable ?month]
                                               [:variable ?day]]}]}
-           :in {:inputs [[:src-var $] [:variable ?name]]}
-           :where {:clauses [[:expression-clause
+           :in {:in-kw :in
+                :inputs [[:src-var $] [:variable ?name]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]
@@ -239,10 +256,13 @@
                              [?artist :artist/startYear ?year]]))))
 
 (deftest test-find-spec-scalar
-  (is (= '{:find {:spec [:find-scalar {:elem [:variable ?year]
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-scalar {:elem [:variable ?year]
                                        :period .}]}
-           :in {:inputs [[:src-var $] [:variable ?name]]}
-           :where {:clauses [[:expression-clause
+           :in {:in-kw :in
+                :inputs [[:src-var $] [:variable ?name]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]
@@ -260,12 +280,14 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-9
 (deftest test-not-clause
-  (is (= '{:find {:spec [:find-scalar
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-scalar
                          {:elem [:aggregate
                                  {:fn-call {:fn-name count
                                             :fn-args [[:variable ?eid]]}}]
                           :period .}]}
-           :where {:clauses [[:expression-clause
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?eid]
                                           [:constant :artist/name]]}]]
@@ -284,12 +306,14 @@
                              (not [?eid :artist/country :country/CA])]))))
 
 (deftest test-not-join-clause
-  (is (= '{:find {:spec [:find-scalar
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-scalar
                          {:elem [:aggregate
                                  {:fn-call {:fn-name count
                                             :fn-args [[:variable ?artist]]}}]
                           :period .}]}
-           :where {:clauses [[:expression-clause
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]]}]]
@@ -317,12 +341,14 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-10
 (deftest test-or-clause
-  (is (= '{:find {:spec [:find-scalar
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-scalar
                          {:elem [:aggregate
                                  {:fn-call {:fn-name count
                                             :fn-args [[:variable ?medium]]}}]
                           :period .}]}
-           :where {:clauses [[:or-clause
+           :where {:where-kw :where
+                   :clauses [[:or-clause
                               {:condition
                                {:or or
                                 :clauses
@@ -362,12 +388,14 @@
                                  [?medium :medium/format :medium.format/vinyl])]))))
 
 (deftest test-or-clause-with-and-clause
-  (is (= '{:find {:spec [:find-scalar
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-scalar
                          {:elem [:aggregate
                                  {:fn-call {:fn-name count
                                             :fn-args [[:variable ?artist]]}}]
                           :period .}]}
-           :where {:clauses [[:or-clause
+           :where {:where-kw :where
+                   :clauses [[:or-clause
                               {:condition
                                {:or or
                                 :clauses
@@ -401,12 +429,14 @@
                                       [?artist :artist/gender :artist.gender/female]))]))))
 
 (deftest test-or-join-clause
-  (is (= '{:find {:spec [:find-scalar
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-scalar
                          {:elem [:aggregate
                                  {:fn-call {:fn-name count
                                             :fn-args [[:variable ?release]]}}]
                           :period .}]}
-           :where {:clauses [[:expression-clause
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern [[:variable ?release]
                                           [:constant :release/name]]}]]
@@ -448,8 +478,10 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-11-1
 (deftest test-predicate-expression
-  (is (= '{:find {:spec [:find-rel [[:variable ?name] [:variable ?year]]]}
-           :where {:clauses [[:expression-clause
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?name] [:variable ?year]]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern
                                 [[:variable ?artist]
@@ -475,10 +507,13 @@
 
 ;; http://docs.datomic.com/query.html#sec-5-11-2
 (deftest test-function-expression
-  (is (= '{:find {:spec [:find-rel [[:variable ?track-name]
+  (is (= '{:find {:find-kw :find
+                  :spec [:find-rel [[:variable ?track-name]
                                     [:variable ?minutes]]]}
-           :in {:inputs [[:src-var $] [:variable ?artist-name]]}
-           :where {:clauses [[:expression-clause
+           :in {:in-kw :in
+                :inputs [[:src-var $] [:variable ?artist-name]]}
+           :where {:where-kw :where
+                   :clauses [[:expression-clause
                               [:data-pattern
                                {:pattern
                                 [[:variable ?artist]

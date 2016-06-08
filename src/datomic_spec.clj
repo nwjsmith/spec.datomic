@@ -1,15 +1,14 @@
 (ns datomic-spec
   (:require [clojure.spec :as s]
             [clojure.string :refer [ends-with? starts-with?]]
-            [clojure.test.check.generators :as gen])
-  (:import (clojure.lang IFn)))
+            [clojure.test.check.generators :as gen]))
 
 ;; From core.incubator
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
   nested structure. keys is a sequence of keys. Any empty maps that result
   will not be present in the new structure."
-  [m [k & ks :as keys]]
+  [m [k & ks]]
   (if ks
     (if-let [nextmap (get m k)]
       (let [newmap (dissoc-in nextmap ks)]
@@ -169,10 +168,6 @@
          :or-join-clause ::or-join-clause
          :expression-clause ::expression-clause))
 
-;; where-clauses = ':where' clause+
-(s/def ::where
-  (s/cat :clauses (s/+ ::clause)))
-
 ;; src-var = symbol starting with "$"
 (s/def ::src-var
   (prefixed-symbol-spec "$"))
@@ -221,6 +216,10 @@
          :find-tuple ::find-tuple
          :find-scalar ::find-scalar))
 
+;; where-clauses = ':where' clause+
+(s/def ::where
+  (s/cat :clauses (s/+ ::clause)))
+
 ;; with-clause = ':with' variable+
 (s/def ::with
   (s/cat :variables (s/+ ::variable)))
@@ -231,48 +230,16 @@
 (s/def ::find
   (s/cat :spec ::find-spec))
 
-(s/def ::query-map
+(defmulti query-form (fn [query] (if (map? query) :map :list)))
+
+(defmethod query-form :map [_]
   (s/keys :req-un [::find] :opt-un [::with ::in ::where]))
 
-(s/def ::list-find (s/cat :find-kw #{:find} :spec ::find-spec))
+(defmethod query-form :list [_]
+  (s/cat :find (s/cat :find-kw #{:find} :spec ::find-spec)
+         :with (s/? (s/cat :with-kw #{:with} :variables (s/+ ::variable)))
+         :in (s/? (s/cat :in-kw #{:in} :inputs (s/+ ::input)))
+         :where (s/? (s/cat :where-kw #{:where} :clauses (s/+ ::clause)))))
 
-(s/def ::list-with (s/? (s/cat :with-kw #{:with} :variables (s/+ ::variable))))
-
-(s/def ::list-in (s/? (s/cat :in-kw #{:in} :inputs (s/+ ::input))))
-
-(s/def ::list-where (s/? (s/cat :where-kw #{:where} :clauses (s/+ ::clause))))
-
-(s/def ::query-list
-  (s/cat :find ::list-find
-         :with ::list-with
-         :in ::list-in
-         :where ::list-where))
-
-(def ^:private list-form-kw-paths
-  [[:find :find-kw]
-   [:with :with-kw]
-   [:in :in-kw]
-   [:where :where-kw]])
-
-(def ^:private query-spec
-  (s/or :map ::query-map
-        :list ::query-list))
-
-;; query = [find-spec with-clause? inputs? where-clauses?]
 (s/def ::query
-  (reify
-    IFn
-    (invoke [this x] (s/valid? this x))
-    clojure.spec/Spec
-    (conform* [_ m]
-      (let [conformed (s/conform query-spec m)]
-        (if (= conformed ::s/invalid)
-          ::s/invalid
-          (let [[_query-form data] conformed]
-            (reduce (fn [m path] (dissoc-in m path))
-                    data
-                    list-form-kw-paths)))))
-    (explain* [_ path via in x] (s/explain* query-spec path via in x))
-    (gen* [_ overrides path rmap] (s/gen* query-spec overrides path rmap))
-    (with-gen* [_ gfn] (s/with-gen* query-spec gfn))
-    (describe* [_] (s/describe* query-spec))))
+  (s/multi-spec query-form :form))
