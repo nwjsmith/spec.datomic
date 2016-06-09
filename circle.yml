@@ -1,0 +1,2 @@
+test:
+  override: lein with-profile ci trampoline test2junit
