@@ -243,3 +243,55 @@
 
 (s/def ::query
   (s/multi-spec query-form (fn [g _] g)))
+
+(s/def ::attr-name keyword?)
+
+;; recursion-limit = positive-number | '...'
+(s/def ::recursion-limit
+  (s/alt :count pos-int?
+         :ellipses #{"..." '...}))
+
+;; default-expr = [("default" | 'default') attr-name any-value]
+(s/def ::default-expr
+  (s/cat :expr (s/spec (s/cat :default #{"default" 'default}
+                              :attr-name ::attr-name
+                              :any-value (let [pred #(not (symbol? %))]
+                                           (s/with-gen
+                                             pred
+                                             #(gen/such-that
+                                               pred
+                                               gen/simple-type-printable)))))))
+
+;; limit-expr = [("limit" | 'limit') attr-name (positive-number | nil)]
+(s/def ::limit-expr
+  (s/cat :expr(s/spec
+                (s/cat :limit #{"limit" 'limit}
+                       :attr-name ::attr-name
+                       :count (s/nilable pos-int?)))))
+
+;; attr-expr = limit-expr | default-expr
+(s/def ::attr-expr
+  (s/alt :limit-expr ::limit-expr
+         :default-expr ::default-expr))
+
+;; map-spec = { ((attr-name | limit-expr) (pattern | recursion-limit))+ }
+(s/def ::map-spec
+  (s/map-of (s/or :attr-name ::attr-name
+                  :limit-expr ::limit-expr)
+            (s/or :pattern ::pull-pattern
+                  :recursion-limit ::recursion-limit)))
+
+;; wildcard = "*" or '*'
+(s/def ::wildcard
+  (s/cat :asterisk #{"*" '*}))
+
+;; attr-spec = attr-name | wildcard | map-spec | attr-expr
+(s/def ::attr-spec
+  (s/alt :attr-name ::attr-name
+         :wildcard ::wildcard
+         :map-spec ::map-spec
+         :attr-expr ::attr-expr))
+
+;; pattern = [attr-spec+]
+(s/def ::pull-pattern
+  (s/cat :pattern (s/+ ::attr-spec)))
