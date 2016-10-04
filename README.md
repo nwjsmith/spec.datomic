@@ -7,22 +7,22 @@
 ## Usage
 
 ```clojure
-(require 'com.theinternate.spec.datomic)
-(require 'clojure.spec)
-(clojure.spec/valid? ::datomic-spec/query '{:find [?e]
-                                            :in [$ ?fname ?lname]
-                                            :where [[?e :user/firstName ?fname]
-                                                    [?e :user/lastName ?lname]]})
+(require '[com.theinternate.spec.datomic :as datomic-spec])
+(require '[clojure.spec :as s])
+(s/valid? ::datomic-spec/query '{:find [?e]
+                                 :in [$ ?fname ?lname]
+                                 :where [[?e :user/firstName ?fname]
+                                         [?e :user/lastName ?lname]]})
 ;; => true
-(clojure.spec/valid? ::datomic-spec/query '[:find [?name ...]
-                                            :in $ ?artist
-                                            :where [?release :release/name ?name]
-                                                   [?release :release/artists ?artist]])
+(s/valid? ::datomic-spec/query '[:find [?name ...]
+                                 :in $ ?artist
+                                 :where [?release :release/name ?name]
+                                        [?release :release/artists ?artist]])
 ;; => true
 
-(clojure.spec/valid? ::datomic-spec/query '[:find ?e
-                                            :inputs $ ?artist
-                                            :where [?e :release/artists ?artist]])
+(s/valid? ::datomic-spec/query '[:find ?e
+                                 :inputs $ ?artist
+                                 :where [?e :release/artists ?artist]])
 ;; => false
 ```
 
