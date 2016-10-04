@@ -1,6 +1,6 @@
 # spec.datomic
 
-[![CircleCI](https://circleci.com/gh/nwjsmith/datomic-spec/tree/master.svg?style=svg)](https://circleci.com/gh/nwjsmith/datomic-spec/tree/master)
+[![CircleCI](https://circleci.com/gh/nwjsmith/spec.datomic/tree/master.svg?style=svg)](https://circleci.com/gh/nwjsmith/spec.datomic/tree/master)
 
 `clojure.spec` specs for Datomic's query data. **Note** this is under active development, so you will get very little use out of it right now.
 
