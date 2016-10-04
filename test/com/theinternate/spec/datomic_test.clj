@@ -1,7 +1,7 @@
-(ns datomic-spec-test
+(ns com.theinternate.spec.datomic-test
   (:require [clojure.test :refer :all]
             [clojure.spec :as s]
-            [datomic-spec :refer :all]))
+            [com.theinternate.spec.datomic :as datomic-spec]))
 
 ;; http://docs.datomic.com/query.html#sec-5-1
 (deftest test-basic-query
@@ -13,7 +13,7 @@
                                {:pattern [[:variable ?e]
                                           [:constant :age]
                                           [:constant 42]]}]]]}}
-         (s/conform :datomic-spec/query '[:find ?e :where [?e :age 42]]))))
+         (s/conform ::datomic-spec/query '[:find ?e :where [?e :age 42]]))))
 
 ;; http://docs.datomic.com/query.html#sec-5-2
 (deftest test-unification-query
@@ -30,7 +30,7 @@
                                {:pattern [[:variable ?e]
                                           [:constant :likes]
                                           [:variable ?x]]}]]]}}
-         (s/conform :datomic-spec/query '[:find ?e ?x
+         (s/conform ::datomic-spec/query '[:find ?e ?x
                                           :where [?e :age 42]
                                                  [?e :likes ?x]]))))
 
@@ -44,7 +44,7 @@
                                   {:pattern [[:blank _]
                                              [:constant :likes]
                                              [:variable ?x]]}]]]}}
-         (s/conform :datomic-spec/query '[:find ?x
+         (s/conform ::datomic-spec/query '[:find ?x
                                           :where [_ :likes ?x]]))))
 
 ;; http://docs.datomic.com/query.html#sec-5-5
@@ -60,7 +60,7 @@
                                 :pattern [[:blank _]
                                           [:constant :release/name]
                                           [:variable ?release-name]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?release-name
                       :in $
                       :where [$ _ :release/name ?release-name]]))))
@@ -90,7 +90,7 @@
                                {:pattern [[:variable ?release]
                                           [:constant :release/name]
                                           [:variable ?release-name]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?release
                       :in $ [?artist-name ?release-name]
                       :where [?artist :artist/name ?artist-name]
@@ -122,7 +122,7 @@
                                {:pattern [[:variable ?release]
                                           [:constant :release/name]
                                           [:variable ?release-name]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?release-name
                       :in $ [?artist-name ...]
                       :where [?artist :artist/name ?artist-name]
@@ -156,7 +156,7 @@
                                {:pattern [[:variable ?release]
                                           [:constant :release/name]
                                           [:variable ?release-name]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?release
                       :in $ [[?artist-name ?release-name]]
                       :where [?artist :artist/name ?artist-name]
@@ -184,7 +184,7 @@
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/name]
                                           [:variable ?artist-name]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?artist-name ?release-name
                       :where [?release :release/name ?release-name]
                              [?release :release/artists ?artist]
@@ -212,7 +212,7 @@
                                {:pattern [[:variable ?release]
                                           [:constant :release/name]
                                           [:variable ?release-name]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find [?release-name ...]
                       :in $ ?artist-name
                       :where [?artist :artist/name ?artist-name]
@@ -247,7 +247,7 @@
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/startYear]
                                           [:variable ?year]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find [?year ?month ?day]
                       :in $ ?name
                       :where [?artist :artist/name ?name]
@@ -272,7 +272,7 @@
                                {:pattern [[:variable ?artist]
                                           [:constant :artist/startYear]
                                           [:variable ?year]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?year .
                       :in $ ?name
                       :where [?artist :artist/name ?name]
@@ -300,7 +300,7 @@
                                    {:pattern [[:variable ?eid]
                                               [:constant :artist/country]
                                               [:constant :country/CA]]}]]]}}]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find (count ?eid) .
                       :where [?eid :artist/name]
                              (not [?eid :artist/country :country/CA])]))))
@@ -332,7 +332,7 @@
                                    {:pattern [[:variable ?release]
                                               [:constant :release/year]
                                               [:constant 1970]]}]]]}}]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find (count ?artist) .
                       :where [?artist :artist/name]
                       (not-join [?artist]
@@ -380,7 +380,7 @@
                                      [[:variable ?medium]
                                       [:constant :medium/format]
                                       [:constant :medium.format/vinyl]]}]]]]}}]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find (count ?medium) .
                       :where (or [?medium :medium/format :medium.format/vinyl7]
                                  [?medium :medium/format :medium.format/vinyl10]
@@ -422,7 +422,7 @@
                                         [[:variable ?artist]
                                          [:constant :artist/gender]
                                          [:constant :artist.gender/female]]}]]]}}]]}}]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find (count ?artist) .
                       :where (or [?artist :artist/type :artist.type/group]
                                  (and [?artist :artist/type :artist.type/person]
@@ -468,7 +468,7 @@
                                      [[:variable ?release]
                                       [:constant :release/year]
                                       [:constant 1970]]}]]]]}}]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find (count ?release) .
                       :where [?release :release/name]
                       (or-join [?release]
@@ -499,7 +499,7 @@
                                 {:fn-call {:fn <
                                            :fn-args [[:variable ?year]
                                                      [:constant 1600]]}}}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?name ?year
                       :where [?artist :artist/name ?name]
                              [?artist :artist/startYear ?year]
@@ -544,7 +544,7 @@
                                 [[:variable ?track]
                                  [:constant :track/name]
                                  [:variable ?track-name]]}]]]}}
-         (s/conform :datomic-spec/query
+         (s/conform ::datomic-spec/query
                     '[:find ?track-name ?minutes
                       :in $ ?artist-name
                       :where [?artist :artist/name ?artist-name]

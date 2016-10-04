@@ -1,16 +1,16 @@
-(ns datomic-spec
+(ns com.theinternate.spec.datomic
   (:require [clojure.spec :as s]
-            [clojure.string :refer [ends-with? starts-with?]]
-            [clojure.test.check.generators :as gen]))
+            [clojure.string :as str]
+            [clojure.spec.gen :as gen]))
 
-(defn prefixed-symbol-spec
+(defn- prefixed-symbol-spec
   "Takes a prefix and returns a spec for a symbol with that prefix."
   [prefix]
   (s/with-gen
-    (s/and symbol? #(starts-with? (name %) prefix))
+    (s/and symbol? #(str/starts-with? (name %) prefix))
     #(gen/fmap
       (fn [n] (symbol (str prefix n)))
-      (gen/not-empty gen/string-alphanumeric))))
+      (gen/not-empty (gen/string-alphanumeric)))))
 
 ;; =============================================================================
 ;; Specs
@@ -20,16 +20,16 @@
   (let [pred #(not (symbol? %))]
     (s/with-gen
       pred
-      #(gen/such-that pred gen/simple-type-printable))))
+      #(gen/such-that pred (gen/string-alphanumeric)))))
 
 ;; plain-symbol = symbol that does not begin with "$" or "?"
 (s/def ::plain-symbol
-  (let [pred #(and (symbol? %) (not (or (starts-with? (name %) "$")
-                                        (starts-with? (name %) "?")
+  (let [pred #(and (symbol? %) (not (or (str/starts-with? (name %) "$")
+                                        (str/starts-with? (name %) "?")
                                         (= '_ %))))]
     (s/with-gen
       pred
-      #(gen/such-that pred gen/symbol))))
+      #(gen/such-that pred (gen/symbol)))))
 
 ;; variable = symbol starting with "?"
 (s/def ::variable
@@ -71,11 +71,11 @@
 ;; FIXME this takes rule-vars?
 (s/def ::or-join-clause
   (s/cat :condition (s/spec
-                      (s/cat :src-var (s/? ::src-var)
-                             :or-join #{'or-join}
-                             :variables (s/spec (s/+ ::variable))
-                             :clauses (s/+ (s/alt :and-clause ::and-clause
-                                                  :clause ::clause))))))
+                     (s/cat :src-var (s/? ::src-var)
+                            :or-join #{'or-join}
+                            :variables (s/spec (s/+ ::variable))
+                            :clauses (s/+ (s/alt :and-clause ::and-clause
+                                                 :clause ::clause))))))
 
 ;; data-pattern = [ src-var? (variable | constant | '_')+ ]
 (s/def ::data-pattern
@@ -93,8 +93,8 @@
 ;; pred-expr = [ [pred fn-arg+] ]
 (s/def ::pred-expr
   (s/cat :expr (s/spec
-                 (s/cat :fn-call (s/spec (s/cat :fn ::plain-symbol
-                                                :fn-args (s/+ ::fn-arg)))))))
+                (s/cat :fn-call (s/spec (s/cat :fn ::plain-symbol
+                                               :fn-args (s/+ ::fn-arg)))))))
 
 ;; bind-scalar = variable
 (s/def ::bind-scalar ::variable)
@@ -112,8 +112,8 @@
 ;; bind-rel = [ [(variable | '_')+]]
 (s/def ::bind-rel
   (s/cat :find-rel (s/spec
-                     (s/cat :variables (s/spec (s/+ (s/alt :variable ::variable
-                                                           :blank #{'_})))))))
+                    (s/cat :variables (s/spec (s/+ (s/alt :variable ::variable
+                                                          :blank #{'_})))))))
 
 ;; binding = (bind-scalar | bind-tuple | bind-coll | bind-rel)
 (s/def ::binding
@@ -125,9 +125,9 @@
 ;; fn-expr = [ [fn fn-arg+] binding]
 (s/def ::fn-expr
   (s/cat :expr (s/spec
-                 (s/cat :fn-call (s/spec (s/cat :fn ::plain-symbol
-                                                :fn-args (s/+ ::fn-arg)))
-                        :binding ::binding))))
+                (s/cat :fn-call (s/spec (s/cat :fn ::plain-symbol
+                                               :fn-args (s/+ ::fn-arg)))
+                       :binding ::binding))))
 
 ;; rule-expr = [ src-var? rule-name (variable | constant | '_')+]
 (s/def ::rule-expr
@@ -245,11 +245,11 @@
                                              pred
                                              #(gen/such-that
                                                pred
-                                               gen/simple-type-printable)))))))
+                                               (gen/simple-type-printable))))))))
 
 ;; limit-expr = [("limit" | 'limit') attr-name (positive-number | nil)]
 (s/def ::limit-expr
-  (s/cat :expr(s/spec
+  (s/cat :expr (s/spec
                 (s/cat :limit #{"limit" 'limit}
                        :attr-name ::attr-name
                        :count (s/nilable pos-int?)))))
